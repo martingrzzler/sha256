@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestNumPaddZero(t *testing.T) {
 	testCases := []struct {

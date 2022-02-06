@@ -5,12 +5,13 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"math/bits"
+	"os"
 )
 
 const CHUNK_SIZE = 64
 const CHUNK_SIZE_BITS = CHUNK_SIZE * 8
+const POW2_32 = 4294967296
 
 //  L + 1 + K + 64 % 512 = 0
 func NumPaddZero(L int) int {
@@ -32,7 +33,7 @@ func PaddMessage(data string) []uint8 {
 	}
 
 	lenAsBytes := make([]uint8, 8)
-	binary.BigEndian.PutUint64(lenAsBytes, uint64(dataLen))
+	binary.BigEndian.PutUint64(lenAsBytes, uint64(dataLen*8))
 	b = append(b, lenAsBytes...)
 
 	return b
@@ -62,7 +63,7 @@ func MessageSchedule(chunk []uint8) []uint32 {
 }
 
 func main() {
-	message := "hello world"
+	message := os.Args[1]
 
 	initial := []uint32{
 		0x6a09e667,
@@ -91,8 +92,8 @@ func main() {
 		ms := MessageSchedule(chunk)
 
 		for i := 16; i < 64; i++ {
-			s0 := bits.RotateLeft32(ms[i-15], 32-7) ^ bits.RotateLeft32(ms[i-15], 32-18) ^ ms[i-15]>>3
-			s1 := bits.RotateLeft32(ms[i-2], 32-17) ^ bits.RotateLeft32(ms[i-2], 32-19) ^ ms[i-2]>>10
+			s0 := bits.RotateLeft32(ms[i-15], -7) ^ bits.RotateLeft32(ms[i-15], -18) ^ (ms[i-15] >> 3)
+			s1 := bits.RotateLeft32(ms[i-2], -17) ^ bits.RotateLeft32(ms[i-2], -19) ^ (ms[i-2] >> 10)
 			ms[i] = ms[i-16] + s0 + ms[i-7] + s1
 		}
 
@@ -106,30 +107,30 @@ func main() {
 		h := initial[7]
 
 		for j := 0; j < 64; j++ {
-			S1 := bits.RotateLeft32(e, 32-6) ^ bits.RotateLeft32(e, 32-11) ^ bits.RotateLeft32(e, 32-25)
+			S1 := bits.RotateLeft32(e, -6) ^ bits.RotateLeft32(e, -11) ^ bits.RotateLeft32(e, -25)
 			ch := (e & f) ^ ((^e) & g)
-			temp1 := uint32(uint64(h+S1+ch+k[j]+ms[j]) % uint64(math.Pow(2, 32)))
-			S0 := bits.RotateLeft32(a, 32-2) ^ bits.RotateLeft32(a, 32-13) ^ bits.RotateLeft32(a, 32-22)
+			temp1 := h + S1 + ch + k[j] + ms[j]
+			S0 := bits.RotateLeft32(a, -2) ^ bits.RotateLeft32(a, -13) ^ bits.RotateLeft32(a, -22)
 			maj := (a & b) ^ (a & c) ^ (b & c)
-			temp2 := uint32(uint64(S0+maj) % uint64(math.Pow(2, 32)))
+			temp2 := S0 + maj
 
 			h = g
 			g = f
 			f = e
-			e = uint32(uint64(d+temp1) % uint64(math.Pow(2, 32)))
+			e = d + temp1
 			d = c
 			c = b
 			b = a
-			a = uint32(uint64(temp1+temp2) % uint64(math.Pow(2, 32)))
+			a = temp1 + temp2
 		}
-		initial[0] = uint32(uint64(initial[0]+a) % uint64(math.Pow(2, 32)))
-		initial[1] = uint32(uint64(initial[1]+b) % uint64(math.Pow(2, 32)))
-		initial[2] = uint32(uint64(initial[2]+c) % uint64(math.Pow(2, 32)))
-		initial[3] = uint32(uint64(initial[3]+d) % uint64(math.Pow(2, 32)))
-		initial[4] = uint32(uint64(initial[4]+e) % uint64(math.Pow(2, 32)))
-		initial[5] = uint32(uint64(initial[5]+f) % uint64(math.Pow(2, 32)))
-		initial[6] = uint32(uint64(initial[6]+g) % uint64(math.Pow(2, 32)))
-		initial[7] = uint32(uint64(initial[7]+h) % uint64(math.Pow(2, 32)))
+		initial[0] = initial[0] + a
+		initial[1] = initial[1] + b
+		initial[2] = initial[2] + c
+		initial[3] = initial[3] + d
+		initial[4] = initial[4] + e
+		initial[5] = initial[5] + f
+		initial[6] = initial[6] + g
+		initial[7] = initial[7] + h
 	}
 
 	buf := new(bytes.Buffer)
@@ -137,5 +138,4 @@ func main() {
 
 	digest := hex.EncodeToString(buf.Bytes())
 	fmt.Println(digest)
-
 }
